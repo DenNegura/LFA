@@ -1,2 +1,7 @@
-import regular_grammar as rg
 
+l = [0, 1, 2, 3]
+t = [0, 1, 2, 4]
+r = [0, 1, 2, 5]
+g = [l, t]
+
+print(r in g)
