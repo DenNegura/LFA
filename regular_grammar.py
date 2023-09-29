@@ -1,5 +1,7 @@
 import string
 
+from report import Report
+
 E = ""
 
 NON_TERMINALS = string.ascii_uppercase
@@ -9,7 +11,6 @@ FORMULAS = list[FORMULA]
 
 RULE = tuple[str, FORMULA]
 RULES = list[RULE]
-
 
 def is_e(x: str):
     return x == E
@@ -29,11 +30,9 @@ def rule(non_terminal: str, formula: str | list = E) -> tuple:
     return non_terminal, formula
 
 
-def view(_rule: tuple):
-    return f'{_rule[0]} -> {"".join(_rule[1])}'
-
-
-def remove_e(rules: RULES, axiom: str) -> tuple[RULES, FORMULAS]:
+def remove_e(rules: RULES, axiom: str) -> RULES:
+    _report = Report().write('(1) Удаление е продукций.').nl()
+    _report.set_param("n_counter", 1)
     e_nts = set()
     m_e_nts = []
     _rules = []
@@ -115,14 +114,20 @@ def remove_e(rules: RULES, axiom: str) -> tuple[RULES, FORMULAS]:
         for _formula in combinations(formula):
             _new_rules.append(rule(nt, _formula))
 
-    return _new_rules, m_e_nts
+    for x in m_e_nts:
+        _report.write(f'N{_report.concat_param("n_counter", 1)} = {_report.as_set(x)}').nl()
+
+    return _new_rules
 
 
-def remove_unit_pair(rules: RULES) -> tuple[RULES, str]:
+def remove_unit_pair(rules: RULES) -> RULES:
+    _report = Report().write('(2) Удаление цепных правил.').nl()
+    for nt in {x[0] for x in rules}:
+        _report.write(f'R_{nt} = ' + '{' + nt + '} ')
+    _report.nl()
     unit_rules = []
     nts = set()
     m_nts = {}
-    report = ''
     _rules = []
     for nt, formula in rules:
         if is_not_terminal("".join(formula)):
@@ -139,8 +144,9 @@ def remove_unit_pair(rules: RULES) -> tuple[RULES, str]:
         for nt, nt_f in unit_rules:
             last_nt_f = m_nts[nt_f]
             m_nts[nt_f] = m_nts[nt_f].union(m_nts[nt])
-            report += f'{nt} -> {nt_f}, R({nt_f}) = R({nt_f}) U R({nt}) = ' \
-                      f'{last_nt_f} U {m_nts[nt]} = {m_nts[nt_f]}\n'.replace("'", '')
+            _report.write(f'{nt} -> {nt_f}, R_{nt_f} = R_{nt_f} U R_{nt} = ')\
+                .write(f'{_report.as_set(last_nt_f)} U {_report.as_set(m_nts[nt])} = ')\
+                .write(f'{_report.as_set(m_nts[nt_f])}').nl()
     _k_to_remove = []
     for k_nt in m_nts:
         m_nts[k_nt] = m_nts[k_nt].difference(k_nt)
@@ -155,11 +161,14 @@ def remove_unit_pair(rules: RULES) -> tuple[RULES, str]:
         if nt in m_nts:
             for unit_nt in m_nts[nt]:
                 _new_rules.append(rule(unit_nt, formula))
-    return _new_rules, report
+    return _new_rules
 
 
 def remove_non_generating(rules: RULES) -> RULES:
-    def is_generate_nt(_formula: FORMULA, _allowed_list: list) -> bool:
+    _report = Report().write('(3) Удаление непорождающих нетерминалов.').nl()
+    _report.set_param('v_counter', 0)
+
+    def is_generate_nt(_formula: FORMULA, _allowed_list: set) -> bool:
         _formula = _formula.copy()
         last_terminals = set()
         for term in _formula:
@@ -167,33 +176,56 @@ def remove_non_generating(rules: RULES) -> RULES:
                 last_terminals.add(term)
         return len(last_terminals) == 0
 
-    def get_generate_nts(_rules, _allowed_list, _gen_list):
+    def get_generate_nts(_rules: RULES, _allowed_set: set[str], _gen_set: set[str]) -> set[str]:
         _next_rules = []
         is_new_gen = False
         for _nt, _formula in _rules:
-            if is_generate_nt(_formula, _allowed_list):
-                _allowed_list.append(_nt)
-                _gen_list.append(_nt)
+            if is_generate_nt(_formula, _allowed_set):
+                if _nt not in _allowed_set:
+                    _allowed_set.add(_nt)
+                    _gen_set.add(_nt)
+                    _report.write(f'V{_report.concat_param("v_counter", 1)} = {_report.as_set(_gen_set)}').nl()
                 is_new_gen = True
             else:
                 _next_rules.append(rule(_nt, _formula))
         if is_new_gen:
-            return get_generate_nts(_next_rules, _allowed_list, _gen_list)
-        return _gen_list
+            return get_generate_nts(_next_rules, _allowed_set, _gen_set)
+        return _gen_set
 
-    gen_list = get_generate_nts(rules, [], [])
+    def get_not_generate_nts(_rules: RULES, _gen_list: set[str]) -> list[str]:
+        _not_gen_list = []
+        for _nt, _formula in _rules:
+            if _nt not in _gen_list:
+                _not_gen_list.append(_nt)
+        return _not_gen_list
 
-    print(gen_list)
+    def remove_not_generate_nts(_rules: RULES, _not_gen_list: list[str]) -> RULES:
+        _new_rules = []
+        for _nt, _formula in _rules:
+            if _nt in _not_gen_list:
+                continue
+            else:
+                is_in_not_gen_list = False
+                for _f_nt in _formula:
+                    if _f_nt in _not_gen_list:
+                        is_in_not_gen_list = True
+                        break
+                if is_in_not_gen_list:
+                    continue
+            _new_rules.append(rule(_nt, _formula))
+        return _new_rules
 
-# r = [
-#     rule('A', 'M'),
-#     rule('B', 'cd'),
-#     rule('C', 'FM'),
-#     rule('D', 'FMCM'),
-#     rule('F', 'M'),
-#     rule('M')
-# ]
-r = [
+    gen_set = get_generate_nts(rules, set(), set())
+    not_gen_list = get_not_generate_nts(rules, gen_set)
+    _report.write(f'Np = Vn / V{_report.get_param("v_counter")} = ')\
+        .write(f'{_report.as_set({n[0] for n in rules})} / {_report.as_set(gen_set)} = ')\
+        .write(f'{_report.as_set(not_gen_list)}').nl()
+    return remove_not_generate_nts(rules, not_gen_list)
+
+
+report = Report().write("=== Начало Отчета ===").nl()
+
+rules = [
     rule('S', 'ABC'),
     rule('S'),
     rule('A', 'BB'),
@@ -204,35 +236,15 @@ r = [
     rule('C', 'b')
 ]
 
-for a in r:
-    print(view(a))
+report.as_rules(rules, 0)
 
-print("\n\nremove E prod: ")
-n_r = remove_e(r, r[0][0])
-print(n_r[1])
-for a in n_r[0]:
-    print(view(a))
+rule_1 = remove_e(rules, rules[0][0])
+report.as_rules(rule_1, 1)
 
-print("\n\nremove unit pair: ")
-r_2 = [
-    rule('E', 'T'),
-    rule('E', 'E+T'),
-    rule('T', 'F'),
-    rule('T', 'T*F'),
-    rule('F', 'a'),
-    rule('F', '(E)'),
-]
-n_n_r = remove_unit_pair(r_2)
-print(n_n_r[1])
+rule_2 = remove_unit_pair(rule_1)
+report.as_rules(rule_2, 2)
 
-for t in n_n_r[0]:
-    print(view(t))
-
-print("\n\nremove non generating: ")
-r_3 = [
-    rule('S', 'Ac'),
-    rule('A', 'SD'),
-    rule('D', 'aD'),
-    rule('A', 'a'),
-]
-n_n_n_r = remove_non_generating(r_3)
+rule_3 = remove_non_generating(rule_2)
+report.as_rules(rule_3, 3)
+report.write("=== Конец Отчета ===")
+print(Report().read())
