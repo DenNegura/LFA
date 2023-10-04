@@ -223,6 +223,31 @@ def remove_non_generating(rules: RULES) -> RULES:
     return remove_not_generate_nts(rules, not_gen_list)
 
 
+def remove_unreachable(rules: RULES, axiom: str) -> RULES:
+    def find_reachable_nts(_rules: RULES, _reachable_nts: set) -> set[str]:
+        _next_rules = []
+        _next_reachable_nts = _reachable_nts.copy()
+        for _nt, _formula in _rules:
+            if _nt in _next_reachable_nts:
+                for _f in _formula:
+                    if is_not_terminal(_f):
+                        _next_reachable_nts.add(_f)
+            else:
+                _next_rules.append(rule(_nt, _formula))
+        if len(_next_reachable_nts) == len(_reachable_nts):
+            return _reachable_nts
+        else:
+            return find_reachable_nts(_next_rules, _next_reachable_nts)
+
+    reachable_nts = find_reachable_nts(rules, {axiom})
+
+    next_rules = []
+    for nt, formula in rules:
+        if nt in reachable_nts:
+            next_rules.append(rule(nt, formula))
+    return next_rules
+
+
 report = Report().write("=== Начало Отчета ===").nl()
 
 rules = [
@@ -235,10 +260,11 @@ rules = [
     rule('C', 'AA'),
     rule('C', 'b')
 ]
+axiom = 'S'
 
 report.as_rules(rules, 0)
 
-rule_1 = remove_e(rules, rules[0][0])
+rule_1 = remove_e(rules, axiom)
 report.as_rules(rule_1, 1)
 
 rule_2 = remove_unit_pair(rule_1)
@@ -246,5 +272,8 @@ report.as_rules(rule_2, 2)
 
 rule_3 = remove_non_generating(rule_2)
 report.as_rules(rule_3, 3)
+
+rule_4 = remove_unreachable(rule_3, axiom)
+report.as_rules(rule_4, 4)
 report.write("=== Конец Отчета ===")
 print(Report().read())
