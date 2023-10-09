@@ -12,6 +12,7 @@ FORMULAS = list[FORMULA]
 RULE = tuple[str, FORMULA]
 RULES = list[RULE]
 
+
 def is_e(x: str):
     return x == E
 
@@ -120,7 +121,7 @@ def remove_e(rules: RULES, axiom: str) -> RULES:
     return _new_rules
 
 
-def remove_unit_pair(rules: RULES) -> RULES:
+def remove_unit_pair(rules: RULES, axiom: str) -> RULES:
     _report = Report().write('(2) Удаление цепных правил.').nl()
     for nt in {x[0] for x in rules}:
         _report.write(f'R_{nt} = ' + '{' + nt + '} ')
@@ -132,7 +133,7 @@ def remove_unit_pair(rules: RULES) -> RULES:
     for nt, formula in rules:
         if is_not_terminal("".join(formula)):
             unit_rules.append((nt, formula[0]))
-            nts = nts.union(nt, formula[0])
+            nts = nts.union({nt}, formula[0])
         else:
             _rules.append(rule(nt, formula))
     for nt in nts:
@@ -144,8 +145,8 @@ def remove_unit_pair(rules: RULES) -> RULES:
         for nt, nt_f in unit_rules:
             last_nt_f = m_nts[nt_f]
             m_nts[nt_f] = m_nts[nt_f].union(m_nts[nt])
-            _report.write(f'{nt} -> {nt_f}, R_{nt_f} = R_{nt_f} U R_{nt} = ')\
-                .write(f'{_report.as_set(last_nt_f)} U {_report.as_set(m_nts[nt])} = ')\
+            _report.write(f'{nt} -> {nt_f}, R_{nt_f} = R_{nt_f} U R_{nt} = ') \
+                .write(f'{_report.as_set(last_nt_f)} U {_report.as_set(m_nts[nt])} = ') \
                 .write(f'{_report.as_set(m_nts[nt_f])}').nl()
     _k_to_remove = []
     for k_nt in m_nts:
@@ -161,7 +162,7 @@ def remove_unit_pair(rules: RULES) -> RULES:
         if nt in m_nts:
             for unit_nt in m_nts[nt]:
                 _new_rules.append(rule(unit_nt, formula))
-    return _new_rules
+    return sorted(_new_rules, key=lambda _rule: _rule[0] == axiom, reverse=True)
 
 
 def remove_non_generating(rules: RULES) -> RULES:
@@ -217,13 +218,16 @@ def remove_non_generating(rules: RULES) -> RULES:
 
     gen_set = get_generate_nts(rules, set(), set())
     not_gen_list = get_not_generate_nts(rules, gen_set)
-    _report.write(f'Np = Vn / V{_report.get_param("v_counter")} = ')\
-        .write(f'{_report.as_set({n[0] for n in rules})} / {_report.as_set(gen_set)} = ')\
+    _report.write(f'Np = Vn / V{_report.get_param("v_counter")} = ') \
+        .write(f'{_report.as_set({n[0] for n in rules})} / {_report.as_set(gen_set)} = ') \
         .write(f'{_report.as_set(not_gen_list)}').nl()
     return remove_not_generate_nts(rules, not_gen_list)
 
 
 def remove_unreachable(rules: RULES, axiom: str) -> RULES:
+    _report = Report().write('(4) Удаление недостижимых нетерминалов.').nl()
+    _report.set_param("v_counter", 0)
+
     def find_reachable_nts(_rules: RULES, _reachable_nts: set) -> set[str]:
         _next_rules = []
         _next_reachable_nts = _reachable_nts.copy()
@@ -231,6 +235,8 @@ def remove_unreachable(rules: RULES, axiom: str) -> RULES:
             if _nt in _next_reachable_nts:
                 for _f in _formula:
                     if is_not_terminal(_f):
+                        _report.write(f'V{_report.concat_param("v_counter", 1)} = '
+                                      f'{_report.as_set(_next_reachable_nts)}').nl()
                         _next_reachable_nts.add(_f)
             else:
                 _next_rules.append(rule(_nt, _formula))
@@ -240,6 +246,9 @@ def remove_unreachable(rules: RULES, axiom: str) -> RULES:
             return find_reachable_nts(_next_rules, _next_reachable_nts)
 
     reachable_nts = find_reachable_nts(rules, {axiom})
+    _report.write(f'Nd = Vn \ V{_report.get_param("v_counter") - 1} = '
+                  f'{_report.as_set(reachable_nts)} / '
+                  f'{_report.as_set({nt[0] for nt in rules}.difference(reachable_nts))}').nl()
 
     next_rules = []
     for nt, formula in rules:
@@ -248,32 +257,61 @@ def remove_unreachable(rules: RULES, axiom: str) -> RULES:
     return next_rules
 
 
+def to_chomsky_normal_form(rules: RULES, axiom: str) -> RULES:
+    _report = Report().write('Приведение к нормальной форме Хомского.').nl()
+    rules = remove_e(rules, axiom)
+    report.as_rules(rules, 1)
+
+    rules = remove_unit_pair(rules, axiom)
+    report.as_rules(rules, 2)
+
+    rules = remove_non_generating(rules)
+    report.as_rules(rules, 3)
+
+    rules = remove_unreachable(rules, axiom)
+    report.as_rules(rules, 4)
+
+    _report.write('(5) Приведение к типу A -> BC, B -> d.').nl()
+
+    nts_in_use = {r[0] for r in rules}
+    non_terminals = set(NON_TERMINALS)
+    next_rules = []
+
+    def create_rules_for_terminals(_rule: RULE):
+        pass
+
+    for nt, formula in rules:
+        if len(formula) > 1:
+            new_nt = None
+            for _f in formula:
+                if is_terminal(_f):
+                    new_nt = (non_terminals - nts_in_use).pop()
+                    nts_in_use.add(new_nt)
+                    next_rules.append(rule(new_nt, _f))
+            if new_nt is None:
+                next_rules.append(rule(nt, formula))
+        next_rules.append(rule(nt, formula))
+    print(next_rules)
+
+
 report = Report().write("=== Начало Отчета ===").nl()
 
 rules = [
-    rule('S', 'ABC'),
-    rule('S'),
-    rule('A', 'BB'),
-    rule('A'),
-    rule('B', 'CC'),
-    rule('B'),
-    rule('C', 'AA'),
-    rule('C', 'b')
+    rule('R', 'A'),
+    rule('A', 'iY'),
+    rule('Y', 'X'),
+    rule('Y'),
+    rule('X', 'OZ'),
+    rule('Z', 'X'),
+    rule('Z'),
+    rule('O', 't'),
+    rule('O', 'f'),
 ]
-axiom = 'S'
+axiom = 'R'
 
 report.as_rules(rules, 0)
 
-rule_1 = remove_e(rules, axiom)
-report.as_rules(rule_1, 1)
+to_chomsky_normal_form(rules, axiom)
 
-rule_2 = remove_unit_pair(rule_1)
-report.as_rules(rule_2, 2)
-
-rule_3 = remove_non_generating(rule_2)
-report.as_rules(rule_3, 3)
-
-rule_4 = remove_unreachable(rule_3, axiom)
-report.as_rules(rule_4, 4)
 report.write("=== Конец Отчета ===")
 print(Report().read())
