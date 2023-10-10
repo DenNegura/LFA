@@ -31,6 +31,14 @@ def rule(non_terminal: str, formula: str | list = E) -> tuple:
     return non_terminal, formula
 
 
+def filter_by_nt(nt: str, rules: RULES) -> RULES:
+    return [*filter(lambda rule: rule[0] == nt, rules)]
+
+
+def filter_by_formula(formula: str, rules: RULES) -> RULES:
+    return [*filter(lambda rule: formula in rule[1], rules)]
+
+
 def remove_e(rules: RULES, axiom: str) -> RULES:
     _report = Report().write('(1) Удаление е продукций.').nl()
     _report.set_param("n_counter", 1)
@@ -260,38 +268,162 @@ def remove_unreachable(rules: RULES, axiom: str) -> RULES:
 def to_chomsky_normal_form(rules: RULES, axiom: str) -> RULES:
     _report = Report().write('Приведение к нормальной форме Хомского.').nl()
     rules = remove_e(rules, axiom)
-    report.as_rules(rules, 1)
+    _report.as_rules(rules, 1)
 
     rules = remove_unit_pair(rules, axiom)
-    report.as_rules(rules, 2)
+    _report.as_rules(rules, 2)
 
     rules = remove_non_generating(rules)
-    report.as_rules(rules, 3)
+    _report.as_rules(rules, 3)
 
     rules = remove_unreachable(rules, axiom)
-    report.as_rules(rules, 4)
+    _report.as_rules(rules, 4)
 
     _report.write('(5) Приведение к типу A -> BC, B -> d.').nl()
 
     nts_in_use = {r[0] for r in rules}
     non_terminals = set(NON_TERMINALS)
-    next_rules = []
 
-    def create_rules_for_terminals(_rule: RULE):
-        pass
+    def create_new_rules(_rule: RULE) -> RULES:
 
-    for nt, formula in rules:
-        if len(formula) > 1:
-            new_nt = None
-            for _f in formula:
-                if is_terminal(_f):
-                    new_nt = (non_terminals - nts_in_use).pop()
-                    nts_in_use.add(new_nt)
-                    next_rules.append(rule(new_nt, _f))
-            if new_nt is None:
-                next_rules.append(rule(nt, formula))
-        next_rules.append(rule(nt, formula))
-    print(next_rules)
+        def _get_new_nt() -> str:
+            new_nt = (non_terminals - nts_in_use).pop()
+            nts_in_use.add(new_nt)
+            return new_nt
+
+        def _new_rules_for_terminals(_rule) -> RULES:
+            _next_rules = []
+            _nt, _formula = _rule
+            if len(_formula) > 1:
+                contains_terminals = False
+                _new_formula = []
+                for _t in _formula:
+                    if is_terminal(_t):
+                        contains_terminals = True
+                        #
+                        new_nt = _get_new_nt()
+                        _next_rules.append(rule(new_nt, _t))
+                        _new_formula.append(new_nt)
+                    else:
+                        _new_formula.append(_t)
+                if contains_terminals:
+                    _next_rules.append(rule(_nt, _new_formula))
+                else:
+                    _next_rules.append(rule(_nt, _formula))
+            else:
+                _next_rules.append(rule(_nt, _formula))
+            return _next_rules
+
+        def _new_rules_for_not_terminals(_rule) -> RULES:
+
+            def _create_rules_recursive(_nt, _formula):
+                _next_formula = []
+                if len(_formula) > 2:
+                    _new_nt = _get_new_nt()
+                    _next_rules.append(rule(_new_nt, _formula[0:2]))
+                    _next_formula = [_new_nt, *_formula[2:]]
+                    _create_rules_recursive(_nt, _next_formula)
+                    return
+                _next_rules.append(rule(_nt, _formula))
+
+            _nt, _formula = _rule
+            _next_rules = []
+            _create_rules_recursive(_nt, _formula)
+            return _next_rules
+
+        _terminal_rules = _new_rules_for_terminals(_rule)
+        _not_terminal_rules = _new_rules_for_not_terminals(_terminal_rules[-1])
+        _create_rules = [*_terminal_rules[:-1], *_not_terminal_rules]
+        return _create_rules
+
+    _new_rules = []
+    for _rule in rules:
+        _rules = create_new_rules(_rule)
+        if _rules:
+            for _r in _rules:
+                _new_rules.append(_r)
+    _new_rules.sort(key=lambda _rule: _rule[0] != axiom)
+    report.as_rules(_new_rules, 5)
+    return _new_rules
+
+
+def create_words(rules: RULES, axiom: str, length: int) -> set:
+    def _replace_first(_nt: str, _word: list, _formula: list):
+        _next_word = _word.copy()
+        _i = _next_word.index(_nt)
+        _next_word[_i: _i + 1] = _formula
+        return _next_word
+
+    def contains_non_terminals(_word: list) -> bool:
+        for _letter in _word:
+            if is_not_terminal(_letter):
+                return True
+        return False
+
+    def is_necessary_len(_word: list) -> bool:
+        return len(_word) >= length
+
+    def contains(_nt: str, _word: list) -> bool:
+        for _letter in _word:
+            if _letter == _nt:
+                return True
+        return False
+
+    def _create_word_recursive(_word: list, _rules: RULES, is_loop: bool) -> set | str:
+        _words = set()
+        for _letter in _word:
+            if is_not_terminal(_letter):
+                for _nt, _formula in filter_by_nt(_letter, _rules):
+                    if is_loop is False and contains(_nt, _formula):
+                        continue
+                    _next_word = _replace_first(_nt, _word, _formula)
+
+                    if is_necessary_len(_next_word):
+                        is_loop = False
+                        if not contains_non_terminals(_next_word):
+                            return "".join(_next_word)
+
+                    _new_word = _create_word_recursive(_next_word, _rules, is_loop)
+                    if _new_word:
+                        if isinstance(_new_word, set):
+                            _words = _words.union([*_new_word])
+                        else:
+                            _words = _words.union([_new_word])
+        if _words:
+            return _words
+        return set()
+
+    words = set()
+    for nt, formula in filter_by_nt(axiom, rules):
+        new_words = _create_word_recursive(formula, rules, True)
+        if new_words:
+            words = words.union([*new_words])
+    return words
+
+
+def get_the_best_word(words: set[str], is_max_len=True, is_max_letters=True) -> str:
+    _words = list(words.copy())
+    if is_max_len:
+        _words = sorted(_words, key=lambda _word: len(_word), reverse=True)
+    if is_max_letters:
+        _words = sorted(_words, key=lambda _word: len(set(_word)), reverse=True)
+    return _words[0]
+
+
+def check_chomsky_normal_form(rules: RULES, word: str) -> bool:
+    _report = Report().write("Проверка на нормальную форму Хомского.").nl()
+    _report.write(f"Слово: {word}").nl()
+
+    table = []
+    table.append([])
+    for letter in word:
+        nts = []
+        for nt, formula in filter_by_formula(letter, rules):
+            nts.append(nt)
+        table[0].append(nts.copy())
+    print(table)
+
+    return False
 
 
 report = Report().write("=== Начало Отчета ===").nl()
@@ -311,7 +443,11 @@ axiom = 'R'
 
 report.as_rules(rules, 0)
 
-to_chomsky_normal_form(rules, axiom)
-
+new_rules = to_chomsky_normal_form(rules, axiom)
+words = create_words(new_rules, axiom, 5)
+word = get_the_best_word(words)
+word = 'itftt'
+print(word)
+check_chomsky_normal_form(new_rules, word)
 report.write("=== Конец Отчета ===")
-print(Report().read())
+# print(Report().read())

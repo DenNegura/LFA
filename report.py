@@ -66,3 +66,9 @@ class Report:
 
     def read(self) -> str:
         return self._report
+
+
+
+    def create_table(self, space: int, sep: str, col_headers: list, row_headers: list) -> 'Report':
+        return self
+

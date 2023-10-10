@@ -1,5 +1,3 @@
-a = [('A', ['']), ('B', ['']), ('C', [''])]
-
-t = {x[0] for x in a}
-
-print(t)
+b = {"str", "btr"}
+b.update({"str"})
+print(b)
