@@ -12,7 +12,6 @@ FORMULAS = list[FORMULA]
 RULE = tuple[str, FORMULA]
 RULES = list[RULE]
 
-
 def is_e(x: str):
     return x == E
 
@@ -37,6 +36,15 @@ def filter_by_nt(nt: str, rules: RULES) -> RULES:
 
 def filter_by_formula(formula: str, rules: RULES) -> RULES:
     return [*filter(lambda rule: formula in rule[1], rules)]
+
+
+def get_rules_from_dict(dict_rules: dict) -> tuple[str, RULES]:
+    _rules = []
+    _axiom = list(dict_rules.keys())[0]
+    for nt in dict_rules.keys():
+        for formula in dict_rules[nt]:
+            _rules.append(rule(nt, formula))
+    return _axiom, _rules
 
 
 def remove_e(rules: RULES, axiom: str) -> RULES:
@@ -265,7 +273,7 @@ def remove_unreachable(rules: RULES, axiom: str) -> RULES:
     return next_rules
 
 
-def to_chomsky_normal_form(rules: RULES, axiom: str) -> RULES:
+def to_chomsky_normal_form(axiom: str, rules: RULES) -> RULES:
     _report = Report().write('Приведение к нормальной форме Хомского.').nl()
     rules = remove_e(rules, axiom)
     _report.as_rules(rules, 1)
@@ -343,7 +351,7 @@ def to_chomsky_normal_form(rules: RULES, axiom: str) -> RULES:
             for _r in _rules:
                 _new_rules.append(_r)
     _new_rules.sort(key=lambda _rule: _rule[0] != axiom)
-    report.as_rules(_new_rules, 5)
+    _report.as_rules(_new_rules, 5)
     return _new_rules
 
 
@@ -417,37 +425,37 @@ def check_chomsky_normal_form(rules: RULES, word: str) -> bool:
     table = []
     table.append([])
     for letter in word:
-        nts = []
+        nts = set()
         for nt, formula in filter_by_formula(letter, rules):
-            nts.append(nt)
+            nts.add(nt)
         table[0].append(nts.copy())
     print(table)
 
     return False
 
 
-report = Report().write("=== Начало Отчета ===").nl()
-
-rules = [
-    rule('R', 'A'),
-    rule('A', 'iY'),
-    rule('Y', 'X'),
-    rule('Y'),
-    rule('X', 'OZ'),
-    rule('Z', 'X'),
-    rule('Z'),
-    rule('O', 't'),
-    rule('O', 'f'),
-]
-axiom = 'R'
-
-report.as_rules(rules, 0)
-
-new_rules = to_chomsky_normal_form(rules, axiom)
-words = create_words(new_rules, axiom, 5)
-word = get_the_best_word(words)
-word = 'itftt'
-print(word)
-check_chomsky_normal_form(new_rules, word)
-report.write("=== Конец Отчета ===")
-# print(Report().read())
+# report = Report().write("=== Начало Отчета ===").nl()
+#
+# rules = [
+#     rule('R', 'A'),
+#     rule('A', 'iY'),
+#     rule('Y', 'X'),
+#     rule('Y'),
+#     rule('X', 'OZ'),
+#     rule('Z', 'X'),
+#     rule('Z'),
+#     rule('O', 't'),
+#     rule('O', 'f'),
+# ]
+# axiom = 'R'
+#
+# report.as_rules(rules, 0)
+#
+# new_rules = to_chomsky_normal_form(axiom, rules)
+# words = create_words(new_rules, axiom, 5)
+# word = get_the_best_word(words)
+# word = 'itftt'
+# print(word)
+# check_chomsky_normal_form(new_rules, word)
+# report.write("=== Конец Отчета ===")
+# # print(Report().read())

@@ -67,8 +67,10 @@ class Report:
     def read(self) -> str:
         return self._report
 
-
-
     def create_table(self, space: int, sep: str, col_headers: list, row_headers: list) -> 'Report':
         return self
 
+    def save_to_file(self, file_path: str) -> 'Report':
+        with open(file_path, 'w', encoding='utf-8') as file:
+            file.write(self._report)
+        return self
