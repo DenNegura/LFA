@@ -4,27 +4,49 @@ E = ""
 
 
 class NonTerminal:
-    ASCII_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    _ASCII_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-    ALL_NTS = None
+    _ALL_NTS = None
 
     def __init__(self, _nt: str):
         self._nt = _nt
 
+    def __eq__(self, other: 'NonTerminal'):
+        return self._nt == other.get_nt()
+
+    def __hash__(self):
+        return hash(self._nt)
+
+    def __str__(self):
+        return self._nt
+
+    def __iter__(self):
+        return self._nt.__iter__()
+
+    def get_nt(self):
+        return self._nt
+
     @staticmethod
-    def get_all_nts():
-        if NonTerminal.ALL_NTS is None:
-            NonTerminal.ALL_NTS = set(NonTerminal.ASCII_UPPERCASE) | \
-                                  set(letter + "'" for letter in NonTerminal.ASCII_UPPERCASE)
-        return NonTerminal.ALL_NTS
+    def _all_nts():
+        if NonTerminal._ALL_NTS is None:
+            NonTerminal._ALL_NTS = list(NonTerminal._ASCII_UPPERCASE) + \
+                                   list(letter + "'" for letter in NonTerminal._ASCII_UPPERCASE)
+        return NonTerminal._ALL_NTS
+
+    @staticmethod
+    def next_nt(_nts: list['NonTerminal'] | set['NonTerminal']) -> 'NonTerminal':
+        for _nt in NonTerminal._all_nts():
+            if _nt not in _nts:
+                return NonTerminal(_nt)
+        raise Exception('All non terminals is in use!')
 
 
-nt = NonTerminal
+NT = NonTerminal
 
 FORMULA = list[str]
 FORMULAS = list[FORMULA]
 
-RULE = tuple[nt, FORMULA]
+RULE = tuple[NT, FORMULA]
 RULES = list[RULE]
 
 
@@ -37,17 +59,18 @@ def is_terminal(x: str) -> bool:
 
 
 def is_not_terminal(x: str) -> bool:
+    print(len(x) == 1 and str.isupper(x), x)
     return len(x) == 1 and str.isupper(x)
 
 
-def rule(non_terminal: str, formula: str | list = E) -> tuple:
+def rule(non_terminal: NT, formula: str | list = E) -> tuple:
     if isinstance(formula, str):
         formula = list(formula)
     return non_terminal, formula
 
 
-def filter_by_nt(nt: str, rules: RULES) -> RULES:
-    return [*filter(lambda rule: rule[0] == nt, rules)]
+def filter_by_nt(_nt: NT, _rules: RULES) -> RULES:
+    return [*filter(lambda _rule: _rule[0] == _nt, rules)]
 
 
 def filter_by_formula(formula: str, rules: RULES) -> RULES:
@@ -102,7 +125,7 @@ def remove_e(rules: RULES, axiom: str) -> RULES:
         is_in_formula = False
         for nt, formula in _rules:
             if axiom in formula:
-                new_axiom = (set(NON_TERMINALS) - e_nts).pop()
+                new_axiom = NT.next_nt(e_nts)
                 _new_rules.append(rule(new_axiom))
                 _new_rules.append(rule(new_axiom, axiom))
                 is_in_formula = True
@@ -157,7 +180,7 @@ def remove_e(rules: RULES, axiom: str) -> RULES:
 def remove_unit_pair(rules: RULES, axiom: str) -> RULES:
     _report = Report().write('(2) Удаление цепных правил.').nl()
     for nt in {x[0] for x in rules}:
-        _report.write(f'R_{nt} = ' + '{' + nt + '} ')
+        _report.write(f'R_{str(nt)} = ' + '{' + str(nt) + '} ')
     _report.nl()
     unit_rules = []
     nts = set()
@@ -309,12 +332,11 @@ def to_chomsky_normal_form(axiom: str, rules: RULES) -> RULES:
     _report.write('(5) Приведение к типу A -> BC, B -> d.').nl()
     print(_report.read())
     nts_in_use = {r[0] for r in rules}
-    non_terminals = set(NON_TERMINALS)
 
     def create_new_rules(_rule: RULE) -> RULES:
 
-        def _get_new_nt() -> str:
-            new_nt = (non_terminals - nts_in_use).pop()
+        def _get_new_nt() -> NT:
+            new_nt = NT.next_nt(nts_in_use)
             nts_in_use.add(new_nt)
             return new_nt
 
@@ -532,4 +554,4 @@ new_rules = to_chomsky_normal_form(axiom, rules)
 # print(word)
 # check_chomsky_normal_form(new_rules, word)
 report.write("=== Конец Отчета ===")
-# print(Report().read())
+print(Report().read())
