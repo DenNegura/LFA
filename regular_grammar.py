@@ -1,16 +1,32 @@
-import string
-
 from report import Report
 
 E = ""
 
-NON_TERMINALS = string.ascii_uppercase
+
+class NonTerminal:
+    ASCII_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+    ALL_NTS = None
+
+    def __init__(self, _nt: str):
+        self._nt = _nt
+
+    @staticmethod
+    def get_all_nts():
+        if NonTerminal.ALL_NTS is None:
+            NonTerminal.ALL_NTS = set(NonTerminal.ASCII_UPPERCASE) | \
+                                  set(letter + "'" for letter in NonTerminal.ASCII_UPPERCASE)
+        return NonTerminal.ALL_NTS
+
+
+nt = NonTerminal
 
 FORMULA = list[str]
 FORMULAS = list[FORMULA]
 
-RULE = tuple[str, FORMULA]
+RULE = tuple[nt, FORMULA]
 RULES = list[RULE]
+
 
 def is_e(x: str):
     return x == E
@@ -81,6 +97,7 @@ def remove_e(rules: RULES, axiom: str) -> RULES:
 
     _new_rules = []
     ''' проверяем аксиому на 'e' '''
+    new_axiom = axiom
     if axiom in e_nts:
         is_in_formula = False
         for nt, formula in _rules:
@@ -134,7 +151,7 @@ def remove_e(rules: RULES, axiom: str) -> RULES:
     for x in m_e_nts:
         _report.write(f'N{_report.concat_param("n_counter", 1)} = {_report.as_set(x)}').nl()
 
-    return _new_rules
+    return _new_rules, new_axiom
 
 
 def remove_unit_pair(rules: RULES, axiom: str) -> RULES:
@@ -250,10 +267,10 @@ def remove_unreachable(rules: RULES, axiom: str) -> RULES:
         for _nt, _formula in _rules:
             if _nt in _next_reachable_nts:
                 for _f in _formula:
-                    if is_not_terminal(_f):
+                    if is_not_terminal(_f) and _f not in _next_reachable_nts:
+                        _next_reachable_nts.add(_f)
                         _report.write(f'V{_report.concat_param("v_counter", 1)} = '
                                       f'{_report.as_set(_next_reachable_nts)}').nl()
-                        _next_reachable_nts.add(_f)
             else:
                 _next_rules.append(rule(_nt, _formula))
         if len(_next_reachable_nts) == len(_reachable_nts):
@@ -261,8 +278,10 @@ def remove_unreachable(rules: RULES, axiom: str) -> RULES:
         else:
             return find_reachable_nts(_next_rules, _next_reachable_nts)
 
+    _report.write(f'V{_report.concat_param("v_counter", 1)} = '
+                  f'{_report.as_set({axiom})}').nl()
     reachable_nts = find_reachable_nts(rules, {axiom})
-    _report.write(f'Nd = Vn \ V{_report.get_param("v_counter") - 1} = '
+    _report.write(f'Nd = Vn / V{_report.get_param("v_counter") - 1} = '
                   f'{_report.as_set(reachable_nts)} / '
                   f'{_report.as_set({nt[0] for nt in rules}.difference(reachable_nts))}').nl()
 
@@ -275,7 +294,7 @@ def remove_unreachable(rules: RULES, axiom: str) -> RULES:
 
 def to_chomsky_normal_form(axiom: str, rules: RULES) -> RULES:
     _report = Report().write('Приведение к нормальной форме Хомского.').nl()
-    rules = remove_e(rules, axiom)
+    rules, axiom = remove_e(rules, axiom)
     _report.as_rules(rules, 1)
 
     rules = remove_unit_pair(rules, axiom)
@@ -288,7 +307,7 @@ def to_chomsky_normal_form(axiom: str, rules: RULES) -> RULES:
     _report.as_rules(rules, 4)
 
     _report.write('(5) Приведение к типу A -> BC, B -> d.').nl()
-
+    print(_report.read())
     nts_in_use = {r[0] for r in rules}
     non_terminals = set(NON_TERMINALS)
 
@@ -328,8 +347,8 @@ def to_chomsky_normal_form(axiom: str, rules: RULES) -> RULES:
                 _next_formula = []
                 if len(_formula) > 2:
                     _new_nt = _get_new_nt()
-                    _next_rules.append(rule(_new_nt, _formula[0:2]))
-                    _next_formula = [_new_nt, *_formula[2:]]
+                    _next_rules.append(rule(_new_nt, _formula[-2:]))
+                    _next_formula = [*_formula[:-2], _new_nt]
                     _create_rules_recursive(_nt, _next_formula)
                     return
                 _next_rules.append(rule(_nt, _formula))
@@ -424,38 +443,93 @@ def check_chomsky_normal_form(rules: RULES, word: str) -> bool:
 
     table = []
     table.append([])
+
     for letter in word:
         nts = set()
-        for nt, formula in filter_by_formula(letter, rules):
-            nts.add(nt)
+        [nts.add(nt) for nt, formula in filter_by_formula(letter, rules)]
         table[0].append(nts.copy())
+
     print(table)
 
     return False
 
 
-# report = Report().write("=== Начало Отчета ===").nl()
-#
-# rules = [
-#     rule('R', 'A'),
-#     rule('A', 'iY'),
-#     rule('Y', 'X'),
-#     rule('Y'),
-#     rule('X', 'OZ'),
-#     rule('Z', 'X'),
-#     rule('Z'),
-#     rule('O', 't'),
-#     rule('O', 'f'),
-# ]
-# axiom = 'R'
-#
-# report.as_rules(rules, 0)
-#
-# new_rules = to_chomsky_normal_form(axiom, rules)
+report = Report().write("=== Начало Отчета ===").nl()
+
+rules = [
+    # rule('R', 'A'),
+    # rule('A', 'iY'),
+    # rule('Y', 'X'),
+    # rule('Y'),
+    # rule('X', 'OZ'),
+    # rule('Z', 'X'),
+    # rule('Z'),
+    # rule('O', 't'),
+    # rule('O', 'f'),
+
+    # rule('C', 'Ti'),
+    # rule('T', 'fLd'),
+    # rule('L', 'e'),
+    # rule('L', 'LcE'),
+    # rule('E', '1'),
+    # rule('E', '12'),
+    #
+    rule('S'),
+    rule('S', 'aUbU'),
+    rule('U', 'S'),
+    rule('U', 'ba'),
+
+    # rule('S', 'aAB'),
+    # rule('S', 'BA'),
+    # rule('A', 'BBB'),
+    # rule('A', 'a'),
+    # rule('B', 'AS'),
+    # rule('B', 'b'),
+
+    # rule('S', 'aA'),
+    # rule('A', 'BBB'),
+    # rule('A', 'AB'),
+    # rule('B', 'b'),
+    # rule('A', 'a'),
+    # rule('S'),
+
+    # rule('S', 'KMN'),
+    # rule('K', 'ab'),
+    # rule('N', 'Ab'),
+    # rule('M', 'AB'),
+    # rule('A'),
+    # rule('B'),
+
+    # rule('S', 'aSbS'),
+    # rule('S', 'bSaS'),
+    # rule('S'),
+
+    # rule('S', 'KMN'),
+    # rule('K', 'ab'),
+    # rule('N', 'Ab'),
+    # rule('M', 'AB'),
+    # rule('A'),
+    # rule('A', 'a'),
+    # rule('B'),
+    # rule('B', 'b'),
+
+    # rule('A', 'B'),
+    # rule('A', 'ab'),
+    # rule('B', 'a'),
+    # rule('B', 'C'),
+    # rule('C', 'b'),
+
+]
+axiom = rules[0][0]
+
+report.as_rules(rules, 0)
+
+new_rules = to_chomsky_normal_form(axiom, rules)
 # words = create_words(new_rules, axiom, 5)
+# print(words)
 # word = get_the_best_word(words)
-# word = 'itftt'
+# word = 'fec1di'
 # print(word)
 # check_chomsky_normal_form(new_rules, word)
-# report.write("=== Конец Отчета ===")
-# # print(Report().read())
+report.write("=== Конец Отчета ===")
+# print(Report().read())
