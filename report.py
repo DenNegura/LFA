@@ -67,7 +67,26 @@ class Report:
     def read(self) -> str:
         return self._report
 
-    def create_table(self, space_cell: int, sep: str, col_headers: list, row_headers: list, table: list) -> 'Report':
+    def create_table(self, space_cell: int, v_sep: str,  h_sep: str, col_headers: list[str], row_headers: list[str], table: list[list[set]]) -> 'Report':
+        def h_line():
+            return h_sep * (space_cell + 1) * (len(col_headers) + 1) + '\n'
+
+        self._report += f"\n{''.rjust(space_cell)}{v_sep}"
+        for col in col_headers:
+            self._report += f" {col.ljust(space_cell - 1)}{v_sep}"
+        self._report += '\n' + h_line()
+
+        row_index = 0
+        for row in row_headers:
+            self._report += f" {row.ljust(space_cell - 1)}{v_sep}"
+            for cell in table[row_index]:
+                if cell:
+                    str_cell = str(cell).replace("{", "").replace("}", "").replace("'", "")
+                else:
+                    str_cell = '-'
+                self._report += f" {str_cell.ljust(space_cell - 1)}{v_sep}"
+            self._report += '\n' + h_line()
+            row_index += 1
         return self
 
     def save_to_file(self, file_path: str) -> 'Report':
