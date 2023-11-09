@@ -20,6 +20,9 @@ FORMULAS = list[FORMULA]
 RULE = tuple[str, FORMULA]
 RULES = list[RULE]
 
+LIST_RULES = RULES
+DICT_RULES = dict[str, FORMULAS]
+
 
 def is_e(x: str):
     return x == E
@@ -56,7 +59,25 @@ def get_rules_from_dict(dict_rules: dict) -> tuple[str, RULES]:
     return _axiom, _rules
 
 
-def remove_e(rules: RULES, axiom: str) -> RULES:
+def rules_list_to_dict(list_rules: list) -> dict[str, FORMULAS]:
+    dict_rules = {}
+    for nt, formula in list_rules:
+        if dict_rules.get(nt):
+            dict_rules[nt].append(formula)
+        else:
+            dict_rules[nt] = [formula]
+    return dict_rules
+
+
+def rules_dict_to_list(dict_rules: dict) -> RULES:
+    list_rules = []
+    for nt in dict_rules.keys():
+        for formula in dict_rules[nt]:
+            list_rules.append(rule(nt, formula))
+    return list_rules
+
+
+def remove_e(rules: RULES, axiom: str) -> tuple[RULES, str]:
     _report = Report().write('(1) Удаление е продукций.').nl()
     _report.set_param("n_counter", 1)
     e_nts = set()
@@ -434,7 +455,7 @@ def get_the_best_word(words: set[str], is_max_len=True, is_max_letters=True) -> 
     return _words[0]
 
 
-def check_chomsky_normal_form(rules: RULES, word: str) -> bool:
+def check_chomsky_normal_form(axiom: str, rules: RULES, word: str) -> bool:
     _report = Report().write("Проверка на нормальную форму Хомского.").nl()
     _report.write(f"Слово: {word}").nl()
 
@@ -472,97 +493,329 @@ def check_chomsky_normal_form(rules: RULES, word: str) -> bool:
     return axiom in table[-1][0]
 
 
-report = Report().write("=== Начало Отчета ===").nl()
+def remove_left_recursion(axiom: str, rules: RULES):
+
+    _rules, _axiom = remove_e([*rules], axiom)
+
+    _rules = remove_non_generating(_rules)
+
+    _rules = remove_unreachable(_rules, _axiom)
+
+    dict_rules = rules_list_to_dict(rules)
+    order_nts = list(dict_rules.keys())
+    total_nts = [*order_nts]
+
+    def remove_direct_recursion(_nt: str):
+        _recursion_formulas = []
+        _other_formulas = []
+        for _formula in dict_rules[_nt]:
+            if _nt == _formula[0]:
+                _recursion_formulas.append(_formula)
+            else:
+                _other_formulas.append(_formula)
+        if _recursion_formulas:
+            _new_nt = get_next_nt(total_nts)  # global order nts
+            total_nts.append(_new_nt)
+            _update_formulas = []
+            _new_formulas = []
+            for _formula in _other_formulas:
+                _update_formulas.append(_formula)
+                _update_formulas.append([*_formula, _new_nt])
+            for _formula in _recursion_formulas:
+                _new_formulas.append(_formula[1:])
+                _new_formulas.append([*_formula[1:], _new_nt])
+
+            dict_rules[_new_nt] = _new_formulas
+            dict_rules[_nt] = _update_formulas
+
+    def remove_indirect_recursion(_nt: str, _i_nt: str):
+        _new_formulas = []
+        for _formula in dict_rules[_nt]:
+            if _i_nt == _formula[0]:
+                for _i_formula in dict_rules[_i_nt]:
+                    _new_formulas.append([*_i_formula, *_formula[1:]])
+            else:
+                _new_formulas.append(_formula)
+
+        dict_rules[_nt] = _new_formulas
+
+    for nt in order_nts:
+        for i_nt in order_nts:
+            if i_nt == nt:
+                break
+            else:
+                remove_indirect_recursion(nt, i_nt)
+        remove_direct_recursion(nt)
+    return rules_dict_to_list(dict_rules)
+
+
+def greibach_normal_form(axiom: str, rules: RULES):
+    _rules = remove_left_recursion(axiom, rules)
+    _dict_rules = rules_list_to_dict(_rules)
+    def get_order_nts(_rules: RULES):
+        _order_nts = []
+        _all_nts = set()
+        for _nt, _formula in _rules:
+            _next_symbol = _formula[0]
+
+            if is_not_terminal(_next_symbol):
+                if _nt not in _all_nts:
+                    _order_nts[:0] = _nt
+                if _next_symbol not in _all_nts:
+                    _order_nts.append(_next_symbol)
+                    _all_nts.add(_next_symbol)
+
+            _all_nts.add(_nt)
+        return _order_nts
+
+    order_nts = get_order_nts(_rules)
+    for nt in order_nts[::-1][1:]:
+        new_formulas = []
+        for formula in _dict_rules[nt]:
+            for deep_formula in _dict_rules[formula[0]]:
+                new_formulas.append([*deep_formula, *formula[1:]])
+        _dict_rules[nt] = new_formulas
+
+    _dict_terminals = dict()
+    for nt in _dict_rules.keys():
+        new_formulas = []
+        for formula in _dict_rules[nt]:
+            if formula:
+                new_formula = [formula[0]]
+                for symbol in formula[1:]:
+                    if is_terminal(symbol):
+                        new_nt = _dict_terminals.get(symbol)
+                        if new_nt is None:
+                            new_nt = get_next_nt(order_nts)
+                            _dict_terminals[symbol] = new_nt
+                        new_formula.append(new_nt)
+                    else:
+                        new_formula.append(symbol)
+                new_formulas.append(new_formula)
+            else:
+                new_formulas.append([E])
+        _dict_rules[nt] = new_formulas
+    for terminal in _dict_terminals.keys():
+        _dict_rules[_dict_terminals[terminal]] = [[terminal]]
+
+    return rules_dict_to_list(_dict_rules)
+
+
+def create_word_analysis_matrix(axiom: str,rules: RULES):
+    _report = Report().nl().write("Грамматика простого прошествия.").nl()
+    dict_rules = rules_list_to_dict(rules)
+
+    def get_sequence(_nt: str, _rules: DICT_RULES, is_first=True) -> list[str]:
+        _dict_rules = _rules.copy()
+        index = 0 if is_first else -1
+
+        def get_seq(_nt: str):
+            _lasts = []
+            _next_lasts = []
+            _formulas = _dict_rules.get(_nt)
+            if _formulas:
+                for _formula in _formulas:
+                    last = _formula[index]
+                    if last in _lasts:
+                        continue
+                    _lasts.append(last)
+                    if is_not_terminal(last):
+                        if _dict_rules.get(_nt):
+                            _dict_rules.pop(_nt)
+                        for _last in get_seq(last):
+                            if _last not in _lasts:
+                                _next_lasts.append(_last)
+            return [*_lasts, *_next_lasts]
+
+        return get_seq(_nt)
+
+    report_prims = []
+    report_lasts = []
+    dict_prims = dict()
+    dict_lasts = dict()
+    for nt in dict_rules.keys():
+        prims = get_sequence(nt, dict_rules, True)
+        report_prims.append([prims])
+        dict_prims[nt] = prims
+
+        lasts = get_sequence(nt, dict_rules, False)
+        report_lasts.append([lasts])
+        dict_lasts[nt] = lasts
+
+    Report().create_table(30, '|', '-', ['Prim(N)'], list(dict_rules.keys()), report_prims)
+    Report().create_table(30, '|', '-', ['Last(N)'], list(dict_rules.keys()), report_lasts)
+
+    def get_pairs(_formula: FORMULA) -> list[tuple[str, str]]:
+        _pairs = []
+        if len(_formula) > 1:
+            for _i in range(1, len(_formula)):
+                _pairs.append((_formula[_i - 1], _formula[_i]))
+        return _pairs
+
+    first_rules, second_rules, third_rules, fourth_rules,= "", "", "", ""
+    for index, rule in enumerate(rules):
+        nt, formula = rule
+        pairs = get_pairs(formula)
+        for a, b in pairs:
+            if is_not_terminal(a) and is_terminal(b) or is_terminal(a) and is_not_terminal(b):   # Aa || aA
+                first_rules += f"\n{index + 1}) {Report().as_rule(rule)} -> {a} = {b}"
+            if is_terminal(a) and is_not_terminal(b):   # Aa
+                second_rules += f"\n{index + 1}) {Report().as_rule(rule)} -> {a} < prim({b})  "
+                for symbol in dict_prims[b]:
+                    second_rules += f"{a} < {symbol}  "
+            if is_not_terminal(a) and is_terminal(b):   # aA
+                third_rules += f"\n{index + 1}) {Report().as_rule(rule)} -> last({a}) > {b}  "
+                for symbol in dict_lasts[a]:
+                    third_rules += f"{symbol} > {b}  "
+            if is_not_terminal(a) and is_not_terminal(b):   # AA
+                fourth_rules += f"\n{index + 1}) {Report().as_rule(rule)} -> last({a}) > prim({b}) / Vn"
+                for last_symbol in dict_lasts[a]:
+                    fourth_rules += f"\n\t{last_symbol}"
+                    for prim_symbol in dict_prims[b]:
+                        if is_terminal(prim_symbol):
+                            fourth_rules += f" > {prim_symbol}"
+
+    fifth_rules = f"$ < Prim({axiom}) ({axiom} - Аксиома), $ - начало строки."
+    fifth_rules += f"\n\t$ < Prim({axiom})"
+    for symbol in dict_prims[axiom]:
+        fifth_rules += f"\n\t$ < {symbol}"
+    sixth_rules = f"Last({axiom}) > $ ({axiom} - Аксиома), $ - конец строки."
+    sixth_rules += f"\n\n\tLast({axiom}) > $"
+    for symbol in dict_lasts[axiom]:
+        sixth_rules += f"\n\t{symbol} > $"
+
+    _report.nl().write("Пункт 1.").nl().write(first_rules).nl()
+    _report.nl().write("Пункт 2.").nl().write(second_rules).nl()
+    _report.nl().write("Пункт 3.").nl().write(third_rules).nl()
+    _report.nl().write("Пункт 4.").nl().write(fourth_rules).nl()
+    _report.nl().write("Пункт 5.").nl().write(fifth_rules).nl()
+    _report.nl().write("Пункт 6.").nl().write(sixth_rules).nl()
+
+
+
+
 
 rules = [
-    # rule('R', 'A'),
-    # rule('A', 'iY'),
-    # rule('Y', 'X'),
-    # rule('Y'),
-    # rule('X', 'OZ'),
-    # rule('Z', 'X'),
-    # rule('Z'),
-    # rule('O', 't'),
-    # rule('O', 'f'),
-
-    rule('C', 'Ti'),
-    rule('T', 'fLd'),
-    rule('L', 'e'),
-    rule('L', 'LcE'),
-    rule('E', '1'),
-    rule('E', '12'),
-    #
-    # rule('S'),
-    # rule('S', 'aUbU'),
-    # rule('U', 'S'),
-    # rule('U', 'ba'),
-
-    # rule('S', 'aAB'),
-    # rule('S', 'BA'),
-    # rule('A', 'BBB'),
-    # rule('A', 'a'),
-    # rule('B', 'AS'),
-    # rule('B', 'b'),
-
-    # rule('S', 'aA'),
-    # rule('A', 'BBB'),
-    # rule('A', 'AB'),
-    # rule('B', 'b'),
-    # rule('A', 'a'),
-    # rule('S'),
-
-    # rule('S', 'KMN'),
-    # rule('K', 'ab'),
-    # rule('N', 'Ab'),
-    # rule('M', 'AB'),
-    # rule('A'),
-    # rule('B'),
-
-    # rule('S', 'aSbS'),
-    # rule('S', 'bSaS'),
-    # rule('S'),
-
-    # rule('S', 'KMN'),
-    # rule('K', 'ab'),
-    # rule('N', 'Ab'),
-    # rule('M', 'AB'),
-    # rule('A'),
-    # rule('A', 'a'),
-    # rule('B'),
-    # rule('B', 'b'),
-
-    # rule('A', 'B'),
-    # rule('A', 'ab'),
-    # rule('B', 'a'),
-    # rule('B', 'C'),
-    # rule('C', 'b'),
-
+    rule('R', 'S'),
+    rule('S', 'A'),
+    rule('S', 'aL'),
+    rule('L', 'Sb'),
+    rule('L', 'SL'),
+    rule('A', 'i'),
+    rule('A', 'n'),
 ]
-axiom = rules[0][0]
-
-report.as_rules(rules, 0)
-
-new_rules, new_axiom = to_chomsky_normal_form(axiom, rules)
-# words = create_words(new_rules, new_axiom, 4)
-# word = get_the_best_word(words)
-word = 'fec1di'
-print(word)
-new_rules = [
-    rule('C', 'TP'),
-    rule('P', 'i'),
-    rule('T', 'DZ'),
-    rule('Z', 'LK'),
-    rule('D', 'f'),
-    rule('K', 'd'),
-    rule('L', 'e'),
-    rule('L', 'LB'),
-    rule('B', 'QE'),
-    rule('Q', 'c'),
-    rule('E', '1'),
-    rule('E', 'NY'),
-    rule('N', '1'),
-    rule('Y', '2'),
-]
-print(check_chomsky_normal_form(new_rules, word))
-report.write("=== Конец Отчета ===")
+axiom = 'R'
+create_word_analysis_matrix(axiom, rules)
 print(Report().read())
+# rules = [
+#     rule('E', 'T'),
+#     rule('E', ['T', 'E1']),
+#     rule('E1', '+T'),
+#     rule('E1', ['+', 'T', 'E1']),
+#     rule('T', 'F'),
+#     rule('T', ['F', 'T1']),
+#     rule('T1', '*F'),
+#     rule('T1', ['*', 'F', 'T1']),
+#     rule('F', '(E)'),
+#     rule('F', 'a'),
+# ]
+# axiom = 'E'
+#
+# greibach_normal_form(axiom, rules)
+
+
+
+# report = Report().write("=== Начало Отчета ===").nl()
+
+# rules = [
+#     # rule('R', 'A'),
+#     # rule('A', 'iY'),
+#     # rule('Y', 'X'),
+#     # rule('Y'),
+#     # rule('X', 'OZ'),
+#     # rule('Z', 'X'),
+#     # rule('Z'),
+#     # rule('O', 't'),
+#     # rule('O', 'f'),
+#
+#     rule('C', 'Ti'),
+#     rule('T', 'fLd'),
+#     rule('L', 'e'),
+#     rule('L', 'LcE'),
+#     rule('E', '1'),
+#     rule('E', '12'),
+#     #
+#     # rule('S'),
+#     # rule('S', 'aUbU'),
+#     # rule('U', 'S'),
+#     # rule('U', 'ba'),
+#
+#     # rule('S', 'aAB'),
+#     # rule('S', 'BA'),
+#     # rule('A', 'BBB'),
+#     # rule('A', 'a'),
+#     # rule('B', 'AS'),
+#     # rule('B', 'b'),
+#
+#     # rule('S', 'aA'),
+#     # rule('A', 'BBB'),
+#     # rule('A', 'AB'),
+#     # rule('B', 'b'),
+#     # rule('A', 'a'),
+#     # rule('S'),
+#
+#     # rule('S', 'KMN'),
+#     # rule('K', 'ab'),
+#     # rule('N', 'Ab'),
+#     # rule('M', 'AB'),
+#     # rule('A'),
+#     # rule('B'),
+#
+#     # rule('S', 'aSbS'),
+#     # rule('S', 'bSaS'),
+#     # rule('S'),
+#
+#     # rule('S', 'KMN'),
+#     # rule('K', 'ab'),
+#     # rule('N', 'Ab'),
+#     # rule('M', 'AB'),
+#     # rule('A'),
+#     # rule('A', 'a'),
+#     # rule('B'),
+#     # rule('B', 'b'),
+#
+#     # rule('A', 'B'),
+#     # rule('A', 'ab'),
+#     # rule('B', 'a'),
+#     # rule('B', 'C'),
+#     # rule('C', 'b'),
+#
+# ]
+# axiom = rules[0][0]
+#
+# report.as_rules(rules, 0)
+#
+# new_rules, new_axiom = to_chomsky_normal_form(axiom, rules)
+# # words = create_words(new_rules, new_axiom, 4)
+# # word = get_the_best_word(words)
+# word = 'fec1di'
+# print(word)
+# new_rules = [
+#     rule('C', 'TP'),
+#     rule('P', 'i'),
+#     rule('T', 'DZ'),
+#     rule('Z', 'LK'),
+#     rule('D', 'f'),
+#     rule('K', 'd'),
+#     rule('L', 'e'),
+#     rule('L', 'LB'),
+#     rule('B', 'QE'),
+#     rule('Q', 'c'),
+#     rule('E', '1'),
+#     rule('E', 'NY'),
+#     rule('N', '1'),
+#     rule('Y', '2'),
+# ]
+# print(check_chomsky_normal_form(new_rules, word))
+# report.write("=== Конец Отчета ===")
+# print(Report().read())

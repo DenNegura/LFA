@@ -52,3 +52,9 @@ def find_rules(f_nts, s_nts):
 # print(table)
 
 print(f"\n{''.rjust(10)}g")
+
+f = ['A', 'B', 'C']
+d = 'D'
+
+for t, r in enumerate(f):
+    print(t, r)

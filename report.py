@@ -67,7 +67,8 @@ class Report:
     def read(self) -> str:
         return self._report
 
-    def create_table(self, space_cell: int, v_sep: str,  h_sep: str, col_headers: list[str], row_headers: list[str], table: list[list[set]]) -> 'Report':
+    def create_table(self, space_cell: int, v_sep: str,  h_sep: str,
+                     col_headers: list[str], row_headers: list[str], table: list[list[set | list]]) -> 'Report':
         def h_line():
             return h_sep * (space_cell + 1) * (len(col_headers) + 1) + '\n'
 
@@ -81,7 +82,10 @@ class Report:
             self._report += f" {row.ljust(space_cell - 1)}{v_sep}"
             for cell in table[row_index]:
                 if cell:
-                    str_cell = str(cell).replace("{", "").replace("}", "").replace("'", "")
+                    if type(cell) is set:
+                        str_cell = str(cell).replace("{", "").replace("}", "").replace("'", "")
+                    if type(cell) is list:
+                        str_cell = str(cell).replace("[", "").replace("]", "").replace("'", "")
                 else:
                     str_cell = '-'
                 self._report += f" {str_cell.ljust(space_cell - 1)}{v_sep}"
