@@ -68,7 +68,8 @@ class Report:
         return self._report
 
     def create_table(self, space_cell: int, v_sep: str,  h_sep: str,
-                     col_headers: list[str], row_headers: list[str], table: list[list[set | list]]) -> 'Report':
+                     col_headers: list[str], row_headers: list[str],
+                     table: list[list[set | list | str]], default_value='-') -> 'Report':
         def h_line():
             return h_sep * (space_cell + 1) * (len(col_headers) + 1) + '\n'
 
@@ -81,13 +82,14 @@ class Report:
         for row in row_headers:
             self._report += f" {row.ljust(space_cell - 1)}{v_sep}"
             for cell in table[row_index]:
+                str_cell = default_value
                 if cell:
                     if type(cell) is set:
                         str_cell = str(cell).replace("{", "").replace("}", "").replace("'", "")
                     if type(cell) is list:
                         str_cell = str(cell).replace("[", "").replace("]", "").replace("'", "")
-                else:
-                    str_cell = '-'
+                    if type(cell) is str:
+                        str_cell = cell
                 self._report += f" {str_cell.ljust(space_cell - 1)}{v_sep}"
             self._report += '\n' + h_line()
             row_index += 1

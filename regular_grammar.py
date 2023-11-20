@@ -43,11 +43,13 @@ def rule(non_terminal: str, formula: str | list = E) -> tuple:
 
 
 def filter_by_nt(nt: str, rules: RULES) -> RULES:
-    return [*filter(lambda rule: rule[0] == nt, rules)]
+    return [*filter(lambda _rule: _rule[0] == nt, rules)]
 
 
-def filter_by_formula(formula: str, rules: RULES) -> RULES:
-    return [*filter(lambda rule: formula in rule[1], rules)]
+def filter_by_formula(formula: str | list | tuple, rules: RULES) -> RULES:
+    if type(formula) is str:
+        return [*filter(lambda _rule: formula in _rule[1], rules)]
+    return [*filter(lambda _rule: list(formula) == _rule[1], rules)]
 
 
 def get_rules_from_dict(dict_rules: dict) -> tuple[str, RULES]:
@@ -75,6 +77,34 @@ def rules_dict_to_list(dict_rules: dict) -> RULES:
         for formula in dict_rules[nt]:
             list_rules.append(rule(nt, formula))
     return list_rules
+
+
+def get_all_not_terminals(rules: RULES) -> list[str]:
+    all_not_terminals = []
+    for nt, formula in rules:
+        if nt not in all_not_terminals:
+            all_not_terminals.append(nt)
+        for symbol in formula:
+            if is_not_terminal(symbol) and symbol not in all_not_terminals:
+                all_not_terminals.append(symbol)
+    return all_not_terminals
+
+
+def get_all_terminals(rules: RULES) -> list[str]:
+    all_terminals = []
+    for _, formula in rules:
+        for symbol in formula:
+            if is_terminal(symbol) and symbol not in all_terminals:
+                all_terminals.append(symbol)
+    return all_terminals
+
+
+def get_pairs(_formula: FORMULA) -> list[tuple[str, str]]:
+    _pairs = []
+    if len(_formula) > 1:
+        for _i in range(1, len(_formula)):
+            _pairs.append((_formula[_i - 1], _formula[_i]))
+    return _pairs
 
 
 def remove_e(rules: RULES, axiom: str) -> tuple[RULES, str]:
@@ -494,7 +524,6 @@ def check_chomsky_normal_form(axiom: str, rules: RULES, word: str) -> bool:
 
 
 def remove_left_recursion(axiom: str, rules: RULES):
-
     _rules, _axiom = remove_e([*rules], axiom)
 
     _rules = remove_non_generating(_rules)
@@ -552,6 +581,7 @@ def remove_left_recursion(axiom: str, rules: RULES):
 def greibach_normal_form(axiom: str, rules: RULES):
     _rules = remove_left_recursion(axiom, rules)
     _dict_rules = rules_list_to_dict(_rules)
+
     def get_order_nts(_rules: RULES):
         _order_nts = []
         _all_nts = set()
@@ -601,88 +631,91 @@ def greibach_normal_form(axiom: str, rules: RULES):
     return rules_dict_to_list(_dict_rules)
 
 
-def create_word_analysis_matrix(axiom: str,rules: RULES):
+def create_word_analysis_matrix(axiom: str, rules: RULES) -> dict[str, list[tuple[str, str]]]:
     _report = Report().nl().write("Грамматика простого прошествия.").nl()
     dict_rules = rules_list_to_dict(rules)
 
     def get_sequence(_nt: str, _rules: DICT_RULES, is_first=True) -> list[str]:
         _dict_rules = _rules.copy()
-        index = 0 if is_first else -1
+        _index = 0 if is_first else -1
 
         def get_seq(_nt: str):
-            _lasts = []
-            _next_lasts = []
+            _symbols = []
+            _next_symbols = []
             _formulas = _dict_rules.get(_nt)
             if _formulas:
                 for _formula in _formulas:
-                    last = _formula[index]
-                    if last in _lasts:
+                    last = _formula[_index]
+                    if last in _symbols:
                         continue
-                    _lasts.append(last)
+                    _symbols.append(last)
                     if is_not_terminal(last):
                         if _dict_rules.get(_nt):
                             _dict_rules.pop(_nt)
                         for _last in get_seq(last):
-                            if _last not in _lasts:
-                                _next_lasts.append(_last)
-            return [*_lasts, *_next_lasts]
+                            if _last not in _symbols:
+                                _next_symbols.append(_last)
+            return [*_symbols, *_next_symbols]
 
         return get_seq(_nt)
 
     report_prims = []
-    report_lasts = []
+    report_next = []
     dict_prims = dict()
-    dict_lasts = dict()
+    dict_next = dict()
     for nt in dict_rules.keys():
-        prims = get_sequence(nt, dict_rules, True)
-        report_prims.append([prims])
-        dict_prims[nt] = prims
+        _prims = get_sequence(nt, dict_rules, True)
+        report_prims.append([_prims])
+        dict_prims[nt] = _prims
 
-        lasts = get_sequence(nt, dict_rules, False)
-        report_lasts.append([lasts])
-        dict_lasts[nt] = lasts
+        _next = get_sequence(nt, dict_rules, False)
+        report_next.append([_next])
+        dict_next[nt] = _next
 
     Report().create_table(30, '|', '-', ['Prim(N)'], list(dict_rules.keys()), report_prims)
-    Report().create_table(30, '|', '-', ['Last(N)'], list(dict_rules.keys()), report_lasts)
+    Report().create_table(30, '|', '-', ['Next(N)'], list(dict_rules.keys()), report_next)
 
-    def get_pairs(_formula: FORMULA) -> list[tuple[str, str]]:
-        _pairs = []
-        if len(_formula) > 1:
-            for _i in range(1, len(_formula)):
-                _pairs.append((_formula[_i - 1], _formula[_i]))
-        return _pairs
-
-    first_rules, second_rules, third_rules, fourth_rules,= "", "", "", ""
-    for index, rule in enumerate(rules):
-        nt, formula = rule
+    first_rules, second_rules, third_rules, fourth_rules = "", "", "", ""
+    dict_table = {'=': [], '<': [], '>': []}
+    for index, _rule in enumerate(rules):
+        nt, formula = _rule
         pairs = get_pairs(formula)
         for a, b in pairs:
-            if is_not_terminal(a) and is_terminal(b) or is_terminal(a) and is_not_terminal(b):   # Aa || aA
-                first_rules += f"\n{index + 1}) {Report().as_rule(rule)} -> {a} = {b}"
-            if is_terminal(a) and is_not_terminal(b):   # Aa
-                second_rules += f"\n{index + 1}) {Report().as_rule(rule)} -> {a} < prim({b})  "
+            # Aa || aA
+            first_rules += f"\n{index + 1}) {Report().as_rule(_rule)} -> {a} = {b}"
+            dict_table['='] = [*dict_table['='], (a, b)]
+
+            if is_not_terminal(b):  # Aa
+                second_rules += f"\n{index + 1}) {Report().as_rule(_rule)} -> {a} < prim({b})  "
                 for symbol in dict_prims[b]:
                     second_rules += f"{a} < {symbol}  "
-            if is_not_terminal(a) and is_terminal(b):   # aA
-                third_rules += f"\n{index + 1}) {Report().as_rule(rule)} -> last({a}) > {b}  "
-                for symbol in dict_lasts[a]:
+                    dict_table['<'] = [*dict_table['<'], (a, symbol)]
+
+            if is_not_terminal(a) and is_terminal(b):  # aA
+                third_rules += f"\n{index + 1}) {Report().as_rule(_rule)} -> next({a}) > {b}  "
+                for symbol in dict_next[a]:
                     third_rules += f"{symbol} > {b}  "
-            if is_not_terminal(a) and is_not_terminal(b):   # AA
-                fourth_rules += f"\n{index + 1}) {Report().as_rule(rule)} -> last({a}) > prim({b}) / Vn"
-                for last_symbol in dict_lasts[a]:
+                    dict_table['>'] = [*dict_table['>'], (symbol, b)]
+
+            if is_not_terminal(a) and is_not_terminal(b):  # AA
+                fourth_rules += f"\n{index + 1}) {Report().as_rule(_rule)} -> next({a}) > prim({b}) / Vn"
+                for last_symbol in dict_next[a]:
                     fourth_rules += f"\n\t{last_symbol}"
                     for prim_symbol in dict_prims[b]:
                         if is_terminal(prim_symbol):
                             fourth_rules += f" > {prim_symbol}"
+                            dict_table['>'] = [*dict_table['>'], (last_symbol, prim_symbol)]
 
     fifth_rules = f"$ < Prim({axiom}) ({axiom} - Аксиома), $ - начало строки."
     fifth_rules += f"\n\t$ < Prim({axiom})"
     for symbol in dict_prims[axiom]:
         fifth_rules += f"\n\t$ < {symbol}"
-    sixth_rules = f"Last({axiom}) > $ ({axiom} - Аксиома), $ - конец строки."
-    sixth_rules += f"\n\n\tLast({axiom}) > $"
-    for symbol in dict_lasts[axiom]:
+        dict_table['<'] = [*dict_table['<'], ('$', symbol)]
+    sixth_rules = f"Next({axiom}) > $ ({axiom} - Аксиома), $ - конец строки."
+    sixth_rules += f"\n\n\tNext({axiom}) > $"
+    for symbol in dict_next[axiom]:
         sixth_rules += f"\n\t{symbol} > $"
+        dict_table['>'] = [*dict_table['>'], (symbol, '$')]
 
     _report.nl().write("Пункт 1.").nl().write(first_rules).nl()
     _report.nl().write("Пункт 2.").nl().write(second_rules).nl()
@@ -691,22 +724,160 @@ def create_word_analysis_matrix(axiom: str,rules: RULES):
     _report.nl().write("Пункт 5.").nl().write(fifth_rules).nl()
     _report.nl().write("Пункт 6.").nl().write(sixth_rules).nl()
 
+    headers = [*get_all_not_terminals(rules), *get_all_terminals(rules), '$']
+    grid = []
+    for i in range(len(headers)):
+        grid.append([])
+        for _ in headers:
+            grid[i].append([])
+
+    for operator in dict_table.keys():
+        for pair in dict_table[operator]:
+            grid[headers.index(pair[0])][headers.index(pair[1])] = operator
+
+    _report.create_table(8, '|', '-', headers, headers, grid, '')
+    return dict_table
+
+
+# todo view a error
+def check_by_word_analysis_matrix(dict_table: dict[str, list[tuple[str, str]]], axiom: str, rules: RULES,
+                                  word: str) -> bool:
+    _report = Report().nl().write("Анализ слова.").nl()
+    if word[0] != '$':
+        word = '$' + word
+    if word[-1] != '$':
+        word = word + '$'
+    stack_trice = "$"
+    end_conditional = f"${axiom}$"
+    is_generated_world = True
+    while word != end_conditional:
+        next_word = ""
+        is_first = True
+        jump_next = False
+        for pair_word in get_pairs(list(word)):
+            if jump_next:
+                jump_next = False
+                continue
+            is_find_pair = False
+            for operator in dict_table:
+                for pair in dict_table[operator]:
+                    if pair_word[0] == pair[0] and pair_word[1] == pair[1]:
+                        is_find_pair = True
+                        stack_trice += f" {operator} {pair[1]}"
+                        if operator == '=' and is_first:
+
+                            jump_next = True
+                            _rules = filter_by_formula(pair, rules)
+                            if _rules:
+                                is_first = False
+                                next_word += _rules[0][0]
+                        elif operator == '>' and is_first:
+                            is_first = False
+                            nt = filter_by_formula(pair[0], rules)[0][0]
+                            next_word += nt
+                        else:
+                            next_word += pair[0]
+            if is_find_pair is False:
+                _report.nl().write("Слово не прошло проверку.").nl()
+                is_generated_world = False
+
+        next_word += '$'
+        word = next_word
+        stack_trice += "\n$"
+    stack_trice += f' < {axiom} > $'
+
+    _report.nl().write(stack_trice).nl()
+    return is_generated_world
+
+
+def create_tree_knuth(word: str):
+    axiom = "N"
+    list_rules = [
+        rule(axiom, "L"),
+        rule(axiom, "L.L"),
+        rule("L", "LB"),
+        rule("L", "B"),
+        rule("B", "1"),
+        rule("B", "0"),
+    ]
+    tree_rules = rules_list_to_dict(list_rules)
+
+    class Node:
+
+        def __init__(self, header, value=None):
+            self._nodes = []
+            self._value = value
+            self._header = header
+
+        def add(self, nodes):
+            if type(nodes) == list or type(nodes) == tuple:
+                self._nodes.extend(nodes)
+            else:
+                self._nodes.append(nodes)
+
+    def create_tree_by_world(_word: str) -> Node:
+        _head = Node("L")
+        _nodes = []
+        for _letter in _word:
+            _nodes.append(Node("B", _letter))
+
+        def create_tree(__head: Node, __nodes, __node) -> Node:
+            if __nodes:
+                __next_head = Node("L")
+                __head.add((__next_head, __node))
+                create_tree(__next_head, __nodes[:-1], __nodes[-1])
+            else:
+                __head.add(__node)
+                return __head
+
+        create_tree(_head, _nodes[:-1], _nodes[-1])
+        return _head
+
+    tree = Node("N")
+    inner_words = word.split('.')
+    if len(inner_words) == 2:
+        tree.add(create_tree_by_world(inner_words[0]))
+        tree.add(Node(".", "."))
+        tree.add(create_tree_by_world(inner_words[1]))
+    elif len(inner_words) == 1:
+        tree.add(create_tree_by_world(inner_words[0]))
+    else:
+        raise Exception("points in word more two.")
 
 
 
+world_g = '101.11001'
+create_tree_knuth(world_g)
+# m_rules = [
+#     rule('R', 'S'),
+#     rule('S', 'A'),
+#     rule('S', 'aL'),
+#     rule('L', 'Sb'),
+#     rule('L', 'SL'),
+#     rule('A', 'i'),
+#     rule('A', 'n'),
+# ]
+# m_rules = [
+#     rule('S', 'dA'),
+#     rule('A', 'D'),
+#     rule('A', 'DcA'),
+#     rule('D', 'bB'),
+#     rule('B', 'a'),
+#     rule('B', 'aB'),
+# ]
+#
+# Report().as_rules(m_rules, 0).nl()
+# m_axiom = 'S'
+# # m_word = 'aiiib'
+# m_word = 'dbacbaa'
+# m_dict_table = create_word_analysis_matrix(m_axiom, m_rules)
+#
+# check_by_word_analysis_matrix(m_dict_table, m_axiom, m_rules, m_word)
+#
+# print(Report().read())
+# TODO НУЖНО НАПИСАТЬ ФАКТОРИЗАЦИЮ
 
-rules = [
-    rule('R', 'S'),
-    rule('S', 'A'),
-    rule('S', 'aL'),
-    rule('L', 'Sb'),
-    rule('L', 'SL'),
-    rule('A', 'i'),
-    rule('A', 'n'),
-]
-axiom = 'R'
-create_word_analysis_matrix(axiom, rules)
-print(Report().read())
+
 # rules = [
 #     rule('E', 'T'),
 #     rule('E', ['T', 'E1']),
@@ -722,7 +893,6 @@ print(Report().read())
 # axiom = 'E'
 #
 # greibach_normal_form(axiom, rules)
-
 
 
 # report = Report().write("=== Начало Отчета ===").nl()
