@@ -1,3 +1,5 @@
+from enum import Enum
+
 from report import Report
 
 E = ""
@@ -519,7 +521,7 @@ def check_chomsky_normal_form(axiom: str, rules: RULES, word: str) -> bool:
             if row:
                 table[row][col] = nts
 
-    _report.create_table(8, '|', '-', list(word), [str(x) for x in range(1, len(word) + 1)], table)
+    _report.create_table(20, '|', '-', list(word), [str(x) for x in range(1, len(word) + 1)], table)
     return axiom in table[-1][0]
 
 
@@ -530,7 +532,7 @@ def remove_left_recursion(axiom: str, rules: RULES):
 
     _rules = remove_unreachable(_rules, _axiom)
 
-    dict_rules = rules_list_to_dict(rules)
+    dict_rules = rules_list_to_dict(_rules)
     order_nts = list(dict_rules.keys())
     total_nts = [*order_nts]
 
@@ -575,7 +577,9 @@ def remove_left_recursion(axiom: str, rules: RULES):
             else:
                 remove_indirect_recursion(nt, i_nt)
         remove_direct_recursion(nt)
-    return rules_dict_to_list(dict_rules)
+    _rules = rules_dict_to_list(dict_rules)
+    Report().write("() Удаление левой рекурсии.").nl().as_rules(_rules, 0).nl()
+    return _rules
 
 
 def greibach_normal_form(axiom: str, rules: RULES):
@@ -682,8 +686,9 @@ def create_word_analysis_matrix(axiom: str, rules: RULES) -> dict[str, list[tupl
         pairs = get_pairs(formula)
         for a, b in pairs:
             # Aa || aA
-            first_rules += f"\n{index + 1}) {Report().as_rule(_rule)} -> {a} = {b}"
-            dict_table['='] = [*dict_table['='], (a, b)]
+            if (is_not_terminal(a) and is_terminal(b)) or (is_terminal(a) and is_not_terminal(b)):
+                first_rules += f"\n{index + 1}) {Report().as_rule(_rule)} -> {a} = {b}"
+                dict_table['='] = [*dict_table['='], (a, b)]
 
             if is_not_terminal(b):  # Aa
                 second_rules += f"\n{index + 1}) {Report().as_rule(_rule)} -> {a} < prim({b})  "
@@ -790,64 +795,278 @@ def check_by_word_analysis_matrix(dict_table: dict[str, list[tuple[str, str]]], 
     return is_generated_world
 
 
-def create_tree_knuth(word: str):
-    axiom = "N"
-    list_rules = [
-        rule(axiom, "L"),
-        rule(axiom, "L.L"),
-        rule("L", "LB"),
-        rule("L", "B"),
-        rule("B", "1"),
-        rule("B", "0"),
-    ]
-    tree_rules = rules_list_to_dict(list_rules)
+# class Node:
+#
+#     def __init__(self, header, value=None):
+#         self._nodes = []
+#         self._value = value
+#         self._header = header
+#
+#     def add(self, nodes):
+#         if type(nodes) == list or type(nodes) == tuple:
+#             self._nodes.extend(nodes)
+#         else:
+#             self._nodes.append(nodes)
+#
+#
+# def create_tree_knuth(word: str):
+#     axiom = "N"
+#     list_rules = [
+#         rule(axiom, "L"),
+#         rule(axiom, "L.L"),
+#         rule("L", "LB"),
+#         rule("L", "B"),
+#         rule("B", "1"),
+#         rule("B", "0"),
+#     ]
+#     tree_rules = rules_list_to_dict(list_rules)
+#
+#     class Node:
+#
+#         def __init__(self, header, value=None):
+#             self._nodes = []
+#             self._value = value
+#             self._header = header
+#
+#         def add(self, nodes):
+#             if type(nodes) == list or type(nodes) == tuple:
+#                 self._nodes.extend(nodes)
+#             else:
+#                 self._nodes.append(nodes)
+#
+#     def create_tree_by_world(_word: str) -> Node:
+#         _head = Node("L")
+#         _nodes = []
+#         for _letter in _word:
+#             _nodes.append(Node("B", _letter))
+#
+#         def create_tree(__head: Node, __nodes, __node) -> Node:
+#             if __nodes:
+#                 __next_head = Node("L")
+#                 __head.add((__next_head, __node))
+#                 create_tree(__next_head, __nodes[:-1], __nodes[-1])
+#             else:
+#                 __head.add(__node)
+#                 return __head
+#
+#         create_tree(_head, _nodes[:-1], _nodes[-1])
+#         return _head
+#
+#     tree = Node("N")
+#     inner_words = word.split('.')
+#     if len(inner_words) == 2:
+#         tree.add(create_tree_by_world(inner_words[0]))
+#         tree.add(Node(".", "."))
+#         tree.add(create_tree_by_world(inner_words[1]))
+#     elif len(inner_words) == 1:
+#         tree.add(create_tree_by_world(inner_words[0]))
+#     else:
+#         raise Exception("points in word more two.")
+#
+#
+# world_g = '101.11001'
 
-    class Node:
 
-        def __init__(self, header, value=None):
-            self._nodes = []
-            self._value = value
-            self._header = header
+# create_tree_knuth(world_g)
 
-        def add(self, nodes):
-            if type(nodes) == list or type(nodes) == tuple:
-                self._nodes.extend(nodes)
+class TreeNode:
+
+    def __init__(self, header: str, nodes: list['TreeNode'] = None):
+        self.header = header
+        if nodes is None:
+            self.nodes = []
+        else:
+            self.nodes = nodes
+
+    def add(self, node: 'TreeNode'):
+        self.nodes.append(node)
+
+
+def create_tree_by_word(axiom: str, rules: RULES, word: str):
+    def create_by_recursion(rule, generate_word, header, node):
+
+        if generate_word:
+            if len(generate_word) == len(word) and generate_word == word:
+                return header
+            if is_terminal(generate_word[0]) and generate_word[0] != word[0]:
+                return None
+            if is_terminal(generate_word[-1]) and generate_word[-1] != word[-1]:
+                return None
+
+
+
+            for _rule in filter_by_nt(rule[0], rules):
+                pass
+
+            return None
+
+    def create_tree(head: TreeNode, node: TreeNode, _word: str):
+
+        def get_branch(_head: TreeNode, _part_word) -> TreeNode | None:
+            _map = {}
+            for i in range(0, len(_head.nodes)):
+                _node = _head.nodes[i]
+                if is_terminal(_node.header):
+                    if _node.header == _word[0]:
+                        _part_word = _part_word[1:]
+                    return None
+                else:
+                    for _rule in filter_by_nt(_node.header, rules):
+                        _new_node = TreeNode(_rule[0])
+                        for _symbol in _rule[1]:
+                            _new_node.add(TreeNode(_symbol))
+                        _success_node = get_branch(_new_node, _part_word)
+                        if _success_node:
+                            _map[i] = _success_node
+
+
+
+
+
+
+
+    axiom_rules = filter_by_nt(axiom, rules)
+    for rule in axiom_rules:
+        header = TreeNode(rule[0])
+        for symbol in rule[1]:
+            header.add(TreeNode(symbol))
+
+        create_tree(header, header.nodes[0], word)
+        # create_by_recursion(rule, '', Node(rule[0], rule[1]), Node(rule[0], rule[1]))
+
+
+def generate_assembler_code(math_expression):
+
+    class Operator(Enum):
+        OPEN = ("(", 0)
+        PLUS = ("+", 1)
+        MINUS = ("-", 1)
+        MULTIPLY = ("*", 2)
+        DIVIDE = ("/", 2)
+
+    def is_operator(s):
+        for op in Operator:
+            print(op)
+            if s == op.value[0]:
+                return True
+        return False
+
+    class Queue:
+
+        class Node:
+            def __init__(self, _val, _next=None, _prev=None):
+                self.val = _val
+                self.next = _next
+                self.prev = _prev
+
+        def __init__(self):
+            self._index = 0
+            self._root = None
+            self._tail = None
+
+        def push_first(self, val):
+            if self._index != 0:
+                self._root = self.Node(_val=val, _next=self._root)
             else:
-                self._nodes.append(nodes)
+                self._root = self.Node(_val=val)
+                self._tail = self._root
+            self._index += 1
 
-    def create_tree_by_world(_word: str) -> Node:
-        _head = Node("L")
-        _nodes = []
-        for _letter in _word:
-            _nodes.append(Node("B", _letter))
-
-        def create_tree(__head: Node, __nodes, __node) -> Node:
-            if __nodes:
-                __next_head = Node("L")
-                __head.add((__next_head, __node))
-                create_tree(__next_head, __nodes[:-1], __nodes[-1])
+        def push_last(self, val):
+            if self._index != 0:
+                self._tail = self.Node(_val=val, _prev=self._tail)
             else:
-                __head.add(__node)
-                return __head
+                self._tail = self.Node(_val=val)
+                self._root = self._tail
+            self._index += 1
 
-        create_tree(_head, _nodes[:-1], _nodes[-1])
-        return _head
+        def pop_first(self):
+            val = None
+            if self._index == 1:
+                val = self._root.val
+                self._root = self._tail = None
+            elif self._index > 1:
+                val = self._root.val
+                self._root = self._root.next
+            else:
+                raise Exception("Queue don't have elements.")
+            self._index -= 1
+            return val
 
-    tree = Node("N")
-    inner_words = word.split('.')
-    if len(inner_words) == 2:
-        tree.add(create_tree_by_world(inner_words[0]))
-        tree.add(Node(".", "."))
-        tree.add(create_tree_by_world(inner_words[1]))
-    elif len(inner_words) == 1:
-        tree.add(create_tree_by_world(inner_words[0]))
-    else:
-        raise Exception("points in word more two.")
+        def pop_last(self):
+            val = None
+            if self._index == 1:
+                val = self._tail.val
+                self._root = self._tail = None
+            elif self._index > 1:
+                val = self._tail.val
+                self._tail = self._tail.next
+            else:
+                raise Exception("Queue don't have elements.")
+            self._index -= 1
+            return val
+
+        def peek_last(self):
+            if self._index != 0:
+                return self._tail.val
+            else:
+                raise Exception("Queue don't have elements.")
+
+        def peek_first(self):
+            if self._index != 0:
+                return self._root.val
+            else:
+                raise Exception("Queue don't have elements.")
+
+    q = Queue()
+    q.push_first(1)
+    q.push_first(2)
+    q.push_last(0)
+    print(q.pop_first())
+    print(q.pop_first())
+    print(q.pop_first())
+
+    # def to_postfix_expression(exp: list) -> list:
+    #
+    #     stack = []
+    #     for val in exp:
+    #         if is_operator(val):
+    #             pass
+    #         else:
+    #             stack.append()
 
 
 
-world_g = '101.11001'
-create_tree_knuth(world_g)
+    # prefix_exp = to_postfix_expression(list(math_expression))
+
+# 2+(5*7)+4 => 57*2+4+
+# generate_assembler_code("2+2")
+
+
+# rules = [
+#     rule('S', 'bA'),
+#     rule('S', 'aB'),
+#     rule('A', 'bAA'),
+#     rule('A', 'aS'),
+#     rule('A', 'a'),
+#     rule('B', 'aBB'),
+#     rule('B', 'ab'),
+#     rule('B', 'b'),
+#
+# ]
+# create_tree_by_word('S', rules, 'bbaa')
+
+# d = greibach_normal_form('S', rules)
+# d = create_word_analysis_matrix('S', rules)
+# check_by_word_analysis_matrix(d, 'S', rules, 'dbacbaa')
+# r = greibach_normal_form('S', rules)
+# r, s = to_chomsky_normal_form('S', rules)
+# w = get_the_best_word(create_words(rules, 'S', 3))
+# check_chomsky_normal_form(s, r, w)
+#
+# print(Report().read())
+# for i in r:
+#     print(Report().as_rule(i))
 # m_rules = [
 #     rule('R', 'S'),
 #     rule('S', 'A'),

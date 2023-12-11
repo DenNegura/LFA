@@ -20,41 +20,74 @@
 #     .save_to_file(write_file_path)
 
 
-table = [[]]
-table[0] = ['A', 'B', 'C', 'D', 'E']
-print(table)
+from regular_grammar import *
+from report import *
 
-# table.append(['' for x in table[0][:-1]])
-# table.append(['' for x in table[1][:-1]])
-# table.append(['' for x in table[2][:-1]])
-# table.append(['' for x in table[3][:-1]])
-# table.append(['' for x in table[4][:-1]])
-def find_rules(f_nts, s_nts):
-    pass
+# rules = [
+#     rule('S', '{R'),
+#     rule('S', '[R'),
+#     rule('R', 'Ra}'),
+#     rule('R', 'Ra]'),
+#     rule('R', 'a'),
+#     rule('R', 'T'),
+#     rule('R', 'F'),
+#     rule('R', 'E'),
+#     rule('F', '{F}'),
+#     rule('F', 'bb'),
+#     rule('F', E),
+#     rule('T', '[T]'),
+#     rule('E', 'k#'),
+# ]
+# axiom = 'S'
+# try:
+#     greibach_normal_form(axiom, rules)
+# except:
+#     pass
+# print(Report().read())
 
-# word = [1, 2, 3, 4, 5]
-# for row in range(len(word) - 1):
-#     table.append(['' for x in range(len(word))])
-#     for col in range(len(table[row]) - row):
-#         for i in range(row):
-#             print(f'row = {row} | i = {i}, j = {col} i1 = {row - i - 1} j2 = {col + i + 1}')
-#             find_rules(table[i][col], table[row - i - 1][col + i + 1])
+# rules = [
+#     rule('R', 'A'),
+#     rule('A', 'iY'),
+#     rule('Y', 'X'),
+#     rule('Y'),
+#     rule('X', 'OZ'),
+#     rule('Z', 'X'),
+#     rule('Z'),
+#     rule('O', 't'),
+#     rule('O', 'f'),
+# ]
+# axiom = 'R'
+#
+# rules, axiom = to_chomsky_normal_form(axiom, rules)
+#
+# word = get_the_best_word(create_words(rules, axiom, 6))
+#
+# is_correct = check_chomsky_normal_form(axiom, rules, word)
+# print(is_correct)
+
+rules = [
+    rule('S', 'Cf'),
+    rule('C', 'abB'),
+    rule('B', 'Dc'),
+    rule('D', 'A'),
+    rule('D', 'LgA'),
+    rule('A', 'd'),
+    rule('A', 'e'),
+]
+axiom = 'S'
+
+word = 'abdgegdgdcf'
+is_correct = False
+try:
+    # rules = remove_unreachable(rules, axiom)
+    # Report().as_rules(rules, 0)
+    # rules = remove_non_generating(rules)
+    # Report().as_rules(rules, 0)
+    mtx = create_word_analysis_matrix(axiom, rules)
+    is_correct = check_by_word_analysis_matrix(mtx, axiom, rules, word)
+except:
+    print(Report().read())
 
 
-# r = 1
-# for c in range(len(table[r])):
-#     for iter in range(r):
-#         i, j = iter, c
-#         i1, j1 = r - i - 1, j + iter + 1
-#         print(f'iter = {iter} | i  = {i}, j  = {j}\niter = {iter} | i1 = {i1}, j1 = {j1}\n')
-
-
-# print(table)
-
-print(f"\n{''.rjust(10)}g")
-
-f = ['A', 'B', 'C']
-d = 'D'
-
-for t, r in enumerate(f):
-    print(t, r)
+if is_correct:
+    print(Report().read())
