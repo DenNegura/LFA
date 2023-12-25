@@ -1,0 +1,9 @@
+{
+  "rules": {
+    "S": ["A"],
+    "A": ["C", "AcC"],
+    "C": ["a", "b", "dD"],
+    "D": ["Ae"]
+  },
+  "word": "dacbcbeca"
+}

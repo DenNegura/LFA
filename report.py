@@ -1,3 +1,6 @@
+from TreeNode import TreeNode
+
+
 def singleton(class_):
     instances = {}
 
@@ -99,3 +102,10 @@ class Report:
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(self._report)
         return self
+
+    def as_tree(self, root: TreeNode, str_fun=str, level=0, prefix="Root: "):
+        if root is not None:
+            self.write(" " * (level * 4) + prefix + str_fun(root)).nl()
+            if root.left is not None or root.right is not None:
+                self.as_tree(root.left, str_fun, level + 1, "L--- ")
+                self.as_tree(root.right, str_fun, level + 1, "R--- ")
