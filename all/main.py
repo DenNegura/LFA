@@ -1,6 +1,6 @@
 import sys
 
-import regular_grammar as rg
+from all import regular_grammar as rg
 from JsonReader import JsonReader
 from report import Report
 

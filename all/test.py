@@ -20,7 +20,7 @@
 #     .save_to_file(write_file_path)
 
 
-from regular_grammar import *
+from all.regular_grammar import *
 from report import *
 
 # rules = [

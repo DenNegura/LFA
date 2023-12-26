@@ -1,4 +1,4 @@
-from common import filter_by_nt, is_not_terminal, RULES
+from common.common import filter_by_nt, is_not_terminal, RULES
 
 
 def create_words(rules: RULES, axiom: str, length: int) -> set:

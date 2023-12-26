@@ -1,5 +1,6 @@
-from common import is_terminal, rules_list_to_dict, RULES, is_not_terminal, get_next_nt, E, rules_dict_to_list, rule
-from grammar import remove_left_recursion
+from common.common import is_terminal, rules_list_to_dict, RULES, is_not_terminal, get_next_nt, E, rules_dict_to_list, \
+    rule
+from common.grammar import remove_left_recursion
 from report import Report
 
 
@@ -67,7 +68,7 @@ def lab_2(axiom: str, rules: RULES, file_path: str = None):
     else:
         print(Report().read())
 
-# for test
+
 r = [
     rule('R', 'R~T'),
     rule('R', 'RT|'),
@@ -83,4 +84,4 @@ r = [
     rule('K'),
 ]
 a = 'R'
-lab_2(a, r, 'result.txt')
+lab_2(a, r, 'lab_2.txt')

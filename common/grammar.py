@@ -1,4 +1,4 @@
-from common import rules_dict_to_list, get_next_nt, rules_list_to_dict, RULES, rule, is_not_terminal, is_terminal, \
+from .common import rules_dict_to_list, get_next_nt, rules_list_to_dict, RULES, rule, is_not_terminal, is_terminal, \
     FORMULA
 from report import Report
 

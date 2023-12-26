@@ -1,7 +1,6 @@
 import nltk
-from nltk import CFG
 
-from TreeNode import TreeNode
+from common.TreeNode import TreeNode
 from report import Report
 
 N_NT = "N"
@@ -54,8 +53,10 @@ def calculate_l(root: TreeNode):
 
     root.postorder(call_l)
 
+
 def calculate_tree_s(tree: nltk.Tree):
     pass
+
 
 def calculate_s(root: TreeNode):
     def call_s(node: TreeNode):
@@ -130,10 +131,8 @@ def check(num: float, word):
     return to_bin(num) == word
 
 
-def lab_5():
+def lab_5(word: str, file_path: str = None):
     report = Report()
-    word = '11.0101'
-    # word = '101'
     root = word_to_tree(word)
     calculate_l(root)
     calculate_s(root)
@@ -142,24 +141,13 @@ def lab_5():
         .write(f'   {check(root.props[V_CALC], word)} ({word})').nl().nl()
     report.as_tree(root, call_print)
     print(Report().read())
+    if file_path:
+        Report().save_to_file(file_path)
+    else:
+        print(Report().read())
 
 
-lab_5()
+w = '11.0101'
+f = 'lab_5.txt'
 
-# grammar = CFG.fromstring("""
-#         N -> L | L '.' L
-#         L -> L B | B
-#         B -> '0' | '1'
-#     """)
-#
-# # expression = input("Expression: ")
-# expression = '1011.011'
-#
-# expression = expression.replace(' ', '')
-#
-# parser = nltk.ChartParser(grammar)
-#
-# # Разбор предложения и получение поддеревьев
-# for tree in parser.parse(list(expression)):
-#     tree.set_label(" value")
-#     tree.draw()
+lab_5(w, f)

@@ -1,7 +1,7 @@
-from common import filter_by_formula, get_pairs, get_all_not_terminals, get_all_terminals, RULES, is_terminal, \
+from common.common import filter_by_formula, get_pairs, get_all_not_terminals, get_all_terminals, RULES, is_terminal, \
     is_not_terminal, DICT_RULES, rules_list_to_dict, rule
 from report import Report
-from words import create_words, get_the_best_word
+from common.words import create_words, get_the_best_word
 
 
 def create_word_analysis_matrix(axiom: str, rules: RULES) -> dict[str, list[tuple[str, str]]]:
@@ -209,15 +209,17 @@ def lab_3(axiom: str, rules: RULES, word: str, len_word: int = 5, file_path: str
 # a = 'S'
 # w = 'ccdce'
 
-# r = [
-#     rule('S', 'Cf'),
-#     rule('C', 'abB'),
-#     rule('B', 'Dc'),
-#     rule('D', 'A'),
-#     rule('D', 'gA'),
-#     rule('A', 'd'),
-#     rule('A', 'e'),
-# ]
-# a = 'S'
-#
-# lab_3(a, r, None, 4, 'result.txt')
+r = [
+    rule('S', 'Cf'),
+    rule('C', 'abB'),
+    rule('B', 'Dc'),
+    rule('D', 'A'),
+    rule('D', 'gA'),
+    rule('A', 'd'),
+    rule('A', 'e'),
+]
+a = 'S'
+
+w = None
+
+lab_3(a, r, w, 4, 'lab_3.txt')

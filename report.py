@@ -1,4 +1,4 @@
-from TreeNode import TreeNode
+from common.TreeNode import TreeNode
 
 
 def singleton(class_):

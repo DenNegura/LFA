@@ -1,7 +1,7 @@
-from common import filter_by_formula, RULES, rule, is_terminal, get_next_nt, RULE
-from grammar import remove_unreachable, remove_non_generating, remove_unit_pair, remove_e
+from common.common import filter_by_formula, RULES, rule, is_terminal, get_next_nt, RULE
+from common.grammar import remove_unreachable, remove_non_generating, remove_unit_pair, remove_e
 from report import Report
-from words import create_words, get_the_best_word
+from common.words import create_words, get_the_best_word
 
 
 def to_chomsky_normal_form(axiom: str, rules: RULES) -> tuple[RULES, str]:
@@ -152,4 +152,6 @@ r = [
 
 a = 'C'
 w = 'fec1di'
-lab_1(a, r, w)
+l = 6
+f = 'lab_1.txt'
+lab_1(a, r, w, l, f)

@@ -1,4 +1,4 @@
-from TreeNode import *
+from common.TreeNode import *
 from report import Report
 
 n_counter = 0
@@ -273,33 +273,25 @@ def postfix_to_tree(expression: str):
     return root
 
 
-def lab_7():
+def lab_7(expression: str, file_path: str = None):
     report = Report()
     report.write(" ======= LAB 7 =======").nl()
-    # exp = input("expression = ")
-    exp = "a * (b + c) + a * (d - c)"
-    report.write("expression = ").write(exp).nl().nl()
-    exp = infix_to_postfix(exp)
-    root = postfix_to_tree(exp)
+    report.write("expression = ").write(expression).nl().nl()
+    expression = infix_to_postfix(expression)
+    root = postfix_to_tree(expression)
     root = set_n(root)
     root = set_l(root)
     report.as_tree(root, lambda node: f'{node.val} n{node.props[N]} l={node.props[L]}')
     report.nl()
     gc(root)
+    if file_path:
+        Report().save_to_file(file_path)
+    else:
+        print(Report().read())
 
 
-lab_7()
-print(Report().read())
+e = "a * (b + c) + a * (d - c)"
 
-# for test
-"""root = TreeNode('+')
-    root.left = TreeNode('*', root)
-    root.right = TreeNode('*', root)
-    root.left.left = TreeNode('a', root.left)
-    root.left.right = TreeNode('+', root.left)
-    root.left.right.left = TreeNode('b', root.left.right)
-    root.left.right.right = TreeNode('c', root.left.right)
-    root.right.left = TreeNode('a', root.right)
-    root.right.right = TreeNode('-', root.right)
-    root.right.right.left = TreeNode('d', root.right.right)
-    root.right.right.right = TreeNode('c', root.right.right)"""
+f = 'lab_7.txt'
+
+lab_7(e, f)
